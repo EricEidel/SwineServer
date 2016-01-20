@@ -1,0 +1,14 @@
+c:\users\eric\documents\visual studio 2013\Projects\SwinecideServer\SwinecideServer\bin\Debug\SwinecideServer.exe.config
+c:\users\eric\documents\visual studio 2013\Projects\SwinecideServer\SwinecideServer\obj\Debug\SwinecideServer.csprojResolveAssemblyReference.cache
+c:\users\eric\documents\visual studio 2013\Projects\SwinecideServer\SwinecideServer\obj\Debug\SwinecideServer.Form1.resources
+c:\users\eric\documents\visual studio 2013\Projects\SwinecideServer\SwinecideServer\obj\Debug\SwinecideServer.Properties.Resources.resources
+c:\users\eric\documents\visual studio 2013\Projects\SwinecideServer\SwinecideServer\obj\Debug\SwinecideServer.csproj.GenerateResource.Cache
+c:\users\eric\documents\visual studio 2013\Projects\SwinecideServer\SwinecideServer\bin\Debug\SwinecideServer.exe
+c:\users\eric\documents\visual studio 2013\Projects\SwinecideServer\SwinecideServer\bin\Debug\SwinecideServer.pdb
+c:\users\eric\documents\visual studio 2013\Projects\SwinecideServer\SwinecideServer\obj\Debug\SwinecideServer.exe
+c:\users\eric\documents\visual studio 2013\Projects\SwinecideServer\SwinecideServer\obj\Debug\SwinecideServer.pdb
+c:\users\eric\documents\visual studio 2013\Projects\SwinecideServer\SwinecideServer\bin\Debug\System.Threading.Tasks.Dataflow.dll
+c:\users\eric\documents\visual studio 2013\Projects\SwinecideServer\SwinecideServer\bin\Debug\vtortola.WebSockets.Deflate.dll
+c:\users\eric\documents\visual studio 2013\Projects\SwinecideServer\SwinecideServer\bin\Debug\vtortola.WebSockets.dll
+c:\users\eric\documents\visual studio 2013\Projects\SwinecideServer\SwinecideServer\bin\Debug\vtortola.WebSockets.Rfc6455.dll
+c:\users\eric\documents\visual studio 2013\Projects\SwinecideServer\SwinecideServer\bin\Debug\System.Threading.Tasks.Dataflow.xml
