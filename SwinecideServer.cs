@@ -3,6 +3,7 @@ using System.Net;
 using vtortola.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace SwinecideServer
 {
@@ -10,7 +11,7 @@ namespace SwinecideServer
     {
         CancellationTokenSource cancellation;
         WebSocketListener server;
-
+        
         public void Start()
         {
             cancellation = new CancellationTokenSource();
@@ -41,6 +42,8 @@ namespace SwinecideServer
                 try
                 {
                     var ws = await server.AcceptWebSocketAsync(token).ConfigureAwait(false);
+                    Console.WriteLine("A new connection joined the server: " + ws.RemoteEndpoint);
+
                     if (ws != null)
                         Task.Run(() => HandleConnectionAsync(ws, token));
                 }
@@ -52,6 +55,11 @@ namespace SwinecideServer
             Console.WriteLine("Server Stop accepting clients");
         }
 
+        WebSocket attacker = null;
+        WebSocket defender = null;
+        bool match_not_started = true;
+        Match match = null;
+
         async Task HandleConnectionAsync(WebSocket ws, CancellationToken cancellation)
         {
             try
@@ -61,8 +69,38 @@ namespace SwinecideServer
                     String msg = await ws.ReadStringAsync(cancellation).ConfigureAwait(false);
                     if (msg != null)
                     {
-                        Console.WriteLine("Message from client was: " + msg);
-                        ws.WriteString("Message from server is: " + msg);
+                        if (match_not_started)
+                        {
+                            if (msg.ToLower().StartsWith("attacker"))
+                            {
+                                attacker = ws;
+                                Console.WriteLine("An attacker joined the game: " + attacker.RemoteEndpoint);
+                            }
+                            else if (msg.ToLower().StartsWith("defender"))
+                            {
+                                defender = ws;
+                                Console.WriteLine("A defender joined the game: " + defender.RemoteEndpoint);
+                            }
+
+                            if (attacker != null && defender != null)
+                            {
+                                match = new Match(attacker, defender);
+                                match_not_started = false;
+
+                                Console.WriteLine("A match has started!");
+                            }
+                        }
+                        else
+                        {
+                            if (ws.RemoteEndpoint.Equals(match.attacker.RemoteEndpoint))
+                            {
+                                match.attacker_said(msg);
+                            }
+                            else if (ws.RemoteEndpoint.Equals(match.defender.RemoteEndpoint))
+                            {
+                                match.defender_said(msg);
+                            }
+                        }                        
                     }
                 }
             }
@@ -75,6 +113,7 @@ namespace SwinecideServer
             finally
             {
                 ws.Dispose();
+                match.ws_disconnected(ws);
             }
         }
     }
