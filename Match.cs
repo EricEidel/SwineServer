@@ -16,21 +16,35 @@ namespace SwinecideServer
         {
             this.attacker = attacker;
             this.defender = defender;
+
+            attacker.WriteString("A match has begun!");
+            defender.WriteString("A match has begun!");
         }
 
-        public void defender_said(string msg)
+        private void defender_said(string msg)
         {
-            send_message(attacker, msg);
+            attacker.WriteString("Message from the other client was: " + msg);
         }
 
-        public void attacker_said(string msg)
+        private void attacker_said(string msg)
         {
-            send_message(defender, msg);
+            defender.WriteString("Message from the other client was: " + msg);
         }
 
-        private void send_message(WebSocket ws, string msg)
+        public void send_message(WebSocket ws, string msg) 
         {
-            ws.WriteString("Message from the other client was: " + msg);
+            if (ws == defender)
+            {
+                defender_said(msg);
+            }
+            else if (ws == attacker)
+            {
+                attacker_said(msg);
+            }
+            else {
+                throw new Exception("Somehow ws in match was neither attacker nor defender.");
+            }
+            
         }
 
         public void ws_disconnected(WebSocket ws)

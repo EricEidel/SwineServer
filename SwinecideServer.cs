@@ -11,11 +11,18 @@ namespace SwinecideServer
     {
         CancellationTokenSource cancellation;
         WebSocketListener server;
+        Queue<WebSocket> attackerQueue = null;
+        Queue<WebSocket> defenderQueue = null;
+        Dictionary<WebSocket, Match> matchDictionary = null;
         
         public void Start()
         {
+            attackerQueue = new Queue<WebSocket>();
+            defenderQueue = new Queue<WebSocket>();
+            matchDictionary = new Dictionary<WebSocket, Match>();
+
             cancellation = new CancellationTokenSource();
-            IPEndPoint endpoint = new IPEndPoint(IPAddress.Parse("192.168.0.14"), 8005);
+            IPEndPoint endpoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 8005);
             server = new WebSocketListener(endpoint);
             var rfc6455 = new vtortola.WebSockets.Rfc6455.WebSocketFactoryRfc6455(server);
             server.Standards.RegisterStandard(rfc6455);
@@ -55,11 +62,6 @@ namespace SwinecideServer
             Console.WriteLine("Server Stop accepting clients");
         }
 
-        WebSocket attacker = null;
-        WebSocket defender = null;
-        bool match_not_started = true;
-        Match match = null;
-
         async Task HandleConnectionAsync(WebSocket ws, CancellationToken cancellation)
         {
             try
@@ -69,37 +71,52 @@ namespace SwinecideServer
                     String msg = await ws.ReadStringAsync(cancellation).ConfigureAwait(false);
                     if (msg != null)
                     {
-                        if (match_not_started)
+                        if (!attackerQueue.Contains(ws) && !defenderQueue.Contains(ws))
                         {
-                            if (msg.ToLower().StartsWith("attacker"))
+                            // The websocket is already in a match
+                            if (matchDictionary.ContainsKey(ws))
                             {
-                                attacker = ws;
-                                Console.WriteLine("An attacker joined the game: " + attacker.RemoteEndpoint);
+                                // Find related match, relay message.
+                                matchDictionary[ws].send_message(ws, "msg");
                             }
-                            else if (msg.ToLower().StartsWith("defender"))
+                            // The websocket is not queued and not in a match.
+                            else
                             {
-                                defender = ws;
-                                Console.WriteLine("A defender joined the game: " + defender.RemoteEndpoint);
-                            }
-
-                            if (attacker != null && defender != null)
-                            {
-                                match = new Match(attacker, defender);
-                                match_not_started = false;
-
-                                Console.WriteLine("A match has started!");
+                                // Queue the websocket, wait for friend.
+                                if (msg.ToLower().StartsWith("attacker"))
+                                {
+                                    Console.WriteLine("An attacker joined the game: " + ws.RemoteEndpoint);
+                                    if (defenderQueue.Count != 0) {
+                                        WebSocket defender = defenderQueue.Dequeue();
+                                        Match newMatch = new Match(ws, defender);
+                                        matchDictionary.Add(ws, newMatch);
+                                        matchDictionary.Add(defender, newMatch);
+                                    }
+                                    else {
+                                        attackerQueue.Enqueue(ws);
+                                    }
+                                }
+                                else if (msg.ToLower().StartsWith("defender"))
+                                {
+                                    Console.WriteLine("A defender joined the game: " + ws.RemoteEndpoint);
+                                    if (attackerQueue.Count != 0)
+                                    {
+                                        WebSocket attacker = attackerQueue.Dequeue();
+                                        Match newMatch = new Match(attacker, ws);
+                                        matchDictionary.Add(ws, newMatch);
+                                        matchDictionary.Add(attacker, newMatch);
+                                    }
+                                    else
+                                    {
+                                        defenderQueue.Enqueue(ws);
+                                    }
+                                }
                             }
                         }
+                        // Websocket is sending messages before getting put into a match, it's already queued.
                         else
                         {
-                            if (ws.RemoteEndpoint.Equals(match.attacker.RemoteEndpoint))
-                            {
-                                match.attacker_said(msg);
-                            }
-                            else if (ws.RemoteEndpoint.Equals(match.defender.RemoteEndpoint))
-                            {
-                                match.defender_said(msg);
-                            }
+                            ws.WriteString("Please wait for a match to start.");
                         }                        
                     }
                 }
@@ -112,8 +129,7 @@ namespace SwinecideServer
             }
             finally
             {
-                ws.Dispose();
-                match.ws_disconnected(ws);
+                matchDictionary[ws].ws_disconnected(ws);
             }
         }
     }
