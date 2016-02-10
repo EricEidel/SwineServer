@@ -9,35 +9,50 @@ namespace SwinecideServer
 {
     public class Match
     {
-        public WebSocket defender;
-        public WebSocket attacker;
+        public SwinecideServer server;
+        public Player defender;
+        public Player attacker;
 
-        public Match(WebSocket attacker, WebSocket defender)
+        public Match(Player attacker, Player defender, SwinecideServer server)
         {
+            attacker.currentMatch = this;
+            defender.currentMatch = this;
+
             this.attacker = attacker;
             this.defender = defender;
+            this.server = server;
 
-            attacker.WriteString("A match has begun!");
-            defender.WriteString("A match has begun!");
+            attacker.getSocket().WriteString("A match has begun!");
+            defender.getSocket().WriteString("A match has begun!");
+        }
+
+        public void Dispose()
+        {
+            this.attacker.getSocket().Dispose();
+            this.defender.getSocket().Dispose();
+            this.attacker.currentMatch = null;
+            this.defender.currentMatch = null;
+            this.attacker = null;
+            this.defender = null;
         }
 
         private void defender_said(string msg)
         {
-            attacker.WriteString("Message from the other client was: " + msg);
+            attacker.getSocket().WriteString("Message from the other client was: " + msg);
         }
 
         private void attacker_said(string msg)
         {
-            defender.WriteString("Message from the other client was: " + msg);
+            defender.getSocket().WriteString("Message from the other client was: " + msg);
         }
 
         public void send_message(WebSocket ws, string msg) 
         {
-            if (ws == defender)
+            if (ws == defender.getSocket())
             {
                 defender_said(msg);
             }
-            else if (ws == attacker)
+            else if (ws == attacker.getSocket())
             {
                 attacker_said(msg);
             }
@@ -49,18 +64,17 @@ namespace SwinecideServer
 
         public void ws_disconnected(WebSocket ws)
         {
-            if (ws.RemoteEndpoint.Equals(defender.RemoteEndpoint))
+            if (ws.RemoteEndpoint.Equals(defender.getSocket().RemoteEndpoint))
             {
                 Console.WriteLine("Defender disconnected - attacker wins!");
-                attacker.WriteString("Defender disconnected - attacker wins!");
-                attacker.Dispose();
+                attacker.getSocket().WriteString("Defender disconnected - attacker wins!");
             }
             else
             {
                 Console.WriteLine("Attacker disconnected - defender wins!");
-                defender.WriteString("Attacker disconnected - defender wins!");
-                defender.Dispose();
+                defender.getSocket().WriteString("Attacker disconnected - defender wins!");
             }
+            server.ReportMatchDone(this);
         }
     }
 }

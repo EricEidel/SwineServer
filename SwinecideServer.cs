@@ -4,6 +4,7 @@ using vtortola.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using Newtonsoft.Json;
 
 namespace SwinecideServer
 {
@@ -11,15 +12,17 @@ namespace SwinecideServer
     {
         CancellationTokenSource cancellation;
         WebSocketListener server;
-        Queue<WebSocket> attackerQueue = null;
-        Queue<WebSocket> defenderQueue = null;
-        Dictionary<WebSocket, Match> matchDictionary = null;
+        Queue<String> attackerQueue = null;
+        Queue<String> defenderQueue = null;
+        Dictionary<WebSocket, String> wsToIdDictionary = null;
+        Dictionary<String, Player> idToPlayerDictionary = null;
         
         public void Start()
         {
-            attackerQueue = new Queue<WebSocket>();
-            defenderQueue = new Queue<WebSocket>();
-            matchDictionary = new Dictionary<WebSocket, Match>();
+            attackerQueue = new Queue<String>();
+            defenderQueue = new Queue<String>();
+            wsToIdDictionary = new Dictionary<WebSocket, String>();
+            idToPlayerDictionary = new Dictionary<String, Player>();
 
             cancellation = new CancellationTokenSource();
             IPEndPoint endpoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 8005);
@@ -31,6 +34,27 @@ namespace SwinecideServer
             Console.WriteLine("Echo Server started at " + endpoint.ToString());
 
             var task = Task.Run(() => AcceptWebSocketClientsAsync(server, cancellation.Token));
+        }
+
+        public void ReportMatchDone(Match match) {
+            try
+            {
+                // remove dictionary associations
+                // theoretically, after removing dictionary associations, this "match" is the final reference to the match.
+                idToPlayerDictionary.Remove(match.attacker.getUniqueId());
+                idToPlayerDictionary.Remove(match.defender.getUniqueId());
+                wsToIdDictionary.Remove(match.attacker.getSocket());
+                wsToIdDictionary.Remove(match.defender.getSocket());
+
+                // dispose objects
+                match.Dispose();
+
+            }
+            catch (Exception aex)
+            {
+                Console.WriteLine("Error Cleaning Up Match: " + aex.GetBaseException().Message);
+            }
+            match.attacker.getSocket().Dispose();
         }
 
         public void Stop()
@@ -71,46 +95,57 @@ namespace SwinecideServer
                     String msg = await ws.ReadStringAsync(cancellation).ConfigureAwait(false);
                     if (msg != null)
                     {
-                        if (!attackerQueue.Contains(ws) && !defenderQueue.Contains(ws))
+                        Dictionary<string, dynamic> msgDict = JsonConvert.DeserializeObject<Dictionary<string, dynamic>>(msg);
+                        String socketId = msgDict["uniqueId"];
+                        if (!attackerQueue.Contains(socketId) && !defenderQueue.Contains(socketId))
                         {
                             // The websocket is already in a match
-                            if (matchDictionary.ContainsKey(ws))
+                            if (wsToIdDictionary.ContainsKey(ws))
                             {
                                 // Find related match, relay message.
-                                matchDictionary[ws].send_message(ws, "msg");
+                                idToPlayerDictionary[wsToIdDictionary[ws]].currentMatch.send_message(ws, msg);
                             }
                             // The websocket is not queued and not in a match.
                             else
                             {
                                 // Queue the websocket, wait for friend.
-                                if (msg.ToLower().StartsWith("attacker"))
-                                {
-                                    Console.WriteLine("An attacker joined the game: " + ws.RemoteEndpoint);
-                                    if (defenderQueue.Count != 0) {
-                                        WebSocket defender = defenderQueue.Dequeue();
-                                        Match newMatch = new Match(ws, defender);
-                                        matchDictionary.Add(ws, newMatch);
-                                        matchDictionary.Add(defender, newMatch);
+                                if (msgDict["msgType"].StartsWith("LogInRequest")) {
+                                    Player p = new Player(ws, msgDict["username"], socketId);
+                                    wsToIdDictionary.Add(ws, socketId);
+                                    idToPlayerDictionary.Add(socketId, p);
+
+                                    if (msgDict["role"].ToLower() == "attacker")
+                                    {
+                                        Console.WriteLine("An attacker joined the game: " + ws.RemoteEndpoint);
+                                        if (defenderQueue.Count != 0)
+                                        {
+                                            String defenderId = defenderQueue.Dequeue();
+                                            Player defender = idToPlayerDictionary[defenderId];
+
+                                            Match newMatch = new Match(p, defender, this);
+                                        }
+                                        else
+                                        {
+                                            attackerQueue.Enqueue(socketId);
+                                        }
                                     }
-                                    else {
-                                        attackerQueue.Enqueue(ws);
+                                    else if (msgDict["role"].ToLower() == "defender")
+                                    {
+                                        Console.WriteLine("A defender joined the game: " + ws.RemoteEndpoint);
+                                        if (attackerQueue.Count != 0)
+                                        {
+                                            String attackerId = attackerQueue.Dequeue();
+                                            Player attacker = idToPlayerDictionary[attackerId];
+
+                                            Match newMatch = new Match(attacker, p, this);
+                                        }
+                                        else
+                                        {
+                                            defenderQueue.Enqueue(socketId);
+                                        }
                                     }
                                 }
-                                else if (msg.ToLower().StartsWith("defender"))
-                                {
-                                    Console.WriteLine("A defender joined the game: " + ws.RemoteEndpoint);
-                                    if (attackerQueue.Count != 0)
-                                    {
-                                        WebSocket attacker = attackerQueue.Dequeue();
-                                        Match newMatch = new Match(attacker, ws);
-                                        matchDictionary.Add(ws, newMatch);
-                                        matchDictionary.Add(attacker, newMatch);
-                                    }
-                                    else
-                                    {
-                                        defenderQueue.Enqueue(ws);
-                                    }
-                                }
+                                
                             }
                         }
                         // Websocket is sending messages before getting put into a match, it's already queued.
@@ -129,7 +164,7 @@ namespace SwinecideServer
             }
             finally
             {
-                matchDictionary[ws].ws_disconnected(ws);
+                idToPlayerDictionary[wsToIdDictionary[ws]].currentMatch.ws_disconnected(ws);
             }
         }
     }
