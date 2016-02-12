@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using vtortola.WebSockets;
+using Newtonsoft.Json;
 
 namespace SwinecideServer
 {
@@ -21,15 +22,21 @@ namespace SwinecideServer
             this.attacker = attacker;
             this.defender = defender;
             this.server = server;
-
-            attacker.getSocket().WriteString("A match has begun!");
-            defender.getSocket().WriteString("A match has begun!");
+            /*
+             * { "msgType":"LogInRequest", "role":"defender" }
+             */
+            Dictionary<String, String> tempDict = new Dictionary<string, string>();
+            tempDict.Add("msgType", "LogIn");
+            tempDict.Add("role", "attacker");
+            attacker.ws.WriteString(JsonConvert.SerializeObject(tempDict, Formatting.Indented));
+            tempDict["role"] = "defender";
+            defender.ws.WriteString(JsonConvert.SerializeObject(tempDict, Formatting.Indented));
         }
 
         public void Dispose()
         {
-            this.attacker.getSocket().Dispose();
-            this.defender.getSocket().Dispose();
+            this.attacker.ws = null;
+            this.defender.ws = null;
             this.attacker.currentMatch = null;
             this.defender.currentMatch = null;
             this.attacker = null;
@@ -38,21 +45,21 @@ namespace SwinecideServer
 
         private void defender_said(string msg)
         {
-            attacker.getSocket().WriteString("Message from the other client was: " + msg);
+            attacker.ws.WriteString(msg);
         }
 
         private void attacker_said(string msg)
         {
-            defender.getSocket().WriteString("Message from the other client was: " + msg);
+            defender.ws.WriteString(msg);
         }
 
         public void send_message(WebSocket ws, string msg) 
         {
-            if (ws == defender.getSocket())
+            if (ws == defender.ws)
             {
                 defender_said(msg);
             }
-            else if (ws == attacker.getSocket())
+            else if (ws == attacker.ws)
             {
                 attacker_said(msg);
             }
@@ -64,17 +71,20 @@ namespace SwinecideServer
 
         public void ws_disconnected(WebSocket ws)
         {
-            if (ws.RemoteEndpoint.Equals(defender.getSocket().RemoteEndpoint))
+            Dictionary<String, String> tempDict = new Dictionary<string, string>();
+            if (ws.RemoteEndpoint.Equals(defender.ws.RemoteEndpoint))
             {
                 Console.WriteLine("Defender disconnected - attacker wins!");
-                attacker.getSocket().WriteString("Defender disconnected - attacker wins!");
+                attacker.ws.WriteString("Defender disconnected - attacker wins!");
             }
             else
             {
                 Console.WriteLine("Attacker disconnected - defender wins!");
-                defender.getSocket().WriteString("Attacker disconnected - defender wins!");
+                defender.ws.WriteString("Attacker disconnected - defender wins!");
             }
             server.ReportMatchDone(this);
+
+            this.Dispose();
         }
     }
 }

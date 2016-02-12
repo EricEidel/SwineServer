@@ -45,16 +45,12 @@ namespace SwinecideServer
                 idToPlayerDictionary.Remove(match.defender.getUniqueId());
                 wsToIdDictionary.Remove(match.attacker.getSocket());
                 wsToIdDictionary.Remove(match.defender.getSocket());
-
-                // dispose objects
-                match.Dispose();
-
             }
             catch (Exception aex)
             {
                 Console.WriteLine("Error Cleaning Up Match: " + aex.GetBaseException().Message);
             }
-            match.attacker.getSocket().Dispose();
+            // match.attacker.getSocket().Dispose();
         }
 
         public void Stop()
@@ -164,7 +160,18 @@ namespace SwinecideServer
             }
             finally
             {
-                idToPlayerDictionary[wsToIdDictionary[ws]].currentMatch.ws_disconnected(ws);
+                if (wsToIdDictionary.ContainsKey(ws))
+                {
+                    if (idToPlayerDictionary.ContainsKey(wsToIdDictionary[ws]))
+                    {
+                        idToPlayerDictionary[wsToIdDictionary[ws]].currentMatch.ws_disconnected(ws);
+                    }
+                }
+                if (ws.IsConnected)
+                {
+                    ws.Dispose();
+                }
+                
             }
         }
     }
