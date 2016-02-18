@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net;
+using System.Linq;
 using vtortola.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,6 +11,7 @@ namespace SwinecideServer
 {
     public class SwinecideServer
     {
+        private static string[] ServerStateMsgTypes = { "Creature Died", "LifeReduced" };
         CancellationTokenSource cancellation;
         WebSocketListener server;
         Queue<String> attackerQueue = null;
@@ -92,62 +94,82 @@ namespace SwinecideServer
                     if (msg != null)
                     {
                         Dictionary<string, dynamic> msgDict = JsonConvert.DeserializeObject<Dictionary<string, dynamic>>(msg);
-                        String socketId = msgDict["uniqueId"];
-                        if (!attackerQueue.Contains(socketId) && !defenderQueue.Contains(socketId))
+                        if (msgDict.ContainsKey("uniqueId"))
                         {
-                            // The websocket is already in a match
-                            if (wsToIdDictionary.ContainsKey(ws))
+                            String socketId = msgDict["uniqueId"];
+                            // If ws is not queued for match
+                            if (!attackerQueue.Contains(socketId) && !defenderQueue.Contains(socketId))
                             {
-                                // Find related match, relay message.
-                                idToPlayerDictionary[wsToIdDictionary[ws]].currentMatch.send_message(ws, msg);
-                            }
-                            // The websocket is not queued and not in a match.
-                            else
-                            {
-                                // Queue the websocket, wait for friend.
-                                if (msgDict["msgType"].StartsWith("LogInRequest")) {
-                                    Player p = new Player(ws, msgDict["username"], socketId);
-                                    wsToIdDictionary.Add(ws, socketId);
-                                    idToPlayerDictionary.Add(socketId, p);
-
-                                    if (msgDict["role"].ToLower() == "attacker")
+                                // If ws is not yet in match
+                                if (!wsToIdDictionary.ContainsKey(ws))
+                                {
+                                    // Queue the websocket, wait for friend.
+                                    if (msgDict["msgType"].StartsWith("LogInRequest"))
                                     {
-                                        Console.WriteLine("An attacker joined the game: " + ws.RemoteEndpoint);
-                                        if (defenderQueue.Count != 0)
-                                        {
-                                            String defenderId = defenderQueue.Dequeue();
-                                            Player defender = idToPlayerDictionary[defenderId];
+                                        Player p = new Player(ws, msgDict["username"], socketId);
+                                        wsToIdDictionary.Add(ws, socketId);
+                                        idToPlayerDictionary.Add(socketId, p);
 
-                                            Match newMatch = new Match(p, defender, this);
-                                        }
-                                        else
+                                        if (msgDict["role"].ToLower() == "attacker")
                                         {
-                                            attackerQueue.Enqueue(socketId);
-                                        }
-                                    }
-                                    else if (msgDict["role"].ToLower() == "defender")
-                                    {
-                                        Console.WriteLine("A defender joined the game: " + ws.RemoteEndpoint);
-                                        if (attackerQueue.Count != 0)
-                                        {
-                                            String attackerId = attackerQueue.Dequeue();
-                                            Player attacker = idToPlayerDictionary[attackerId];
+                                            Console.WriteLine("An attacker joined the game: " + ws.RemoteEndpoint);
+                                            if (defenderQueue.Count != 0)
+                                            {
+                                                String defenderId = defenderQueue.Dequeue();
+                                                Player defender = idToPlayerDictionary[defenderId];
 
-                                            Match newMatch = new Match(attacker, p, this);
+                                                Match newMatch = new Match(p, defender, this);
+                                            }
+                                            else
+                                            {
+                                                attackerQueue.Enqueue(socketId);
+                                            }
                                         }
-                                        else
+                                        else if (msgDict["role"].ToLower() == "defender")
                                         {
-                                            defenderQueue.Enqueue(socketId);
+                                            Console.WriteLine("A defender joined the game: " + ws.RemoteEndpoint);
+                                            if (attackerQueue.Count != 0)
+                                            {
+                                                String attackerId = attackerQueue.Dequeue();
+                                                Player attacker = idToPlayerDictionary[attackerId];
+
+                                                Match newMatch = new Match(attacker, p, this);
+                                            }
+                                            else
+                                            {
+                                                defenderQueue.Enqueue(socketId);
+                                            }
                                         }
                                     }
                                 }
-                                
+                            }
+                            else
+                            {
+                                ws.WriteString("Please wait for a match to start.");
                             }
                         }
                         // Websocket is sending messages before getting put into a match, it's already queued.
                         else
                         {
-                            ws.WriteString("Please wait for a match to start.");
+                            // The websocket is already in a match
+                            if (wsToIdDictionary.ContainsKey(ws))
+                            {
+                                // Check if message is for server.
+                                if (msgDict["msgType"] == "CreatureDied")
+                                {
+                                    // Not doing anything with this yet.
+                                }
+                                else if (msgDict["msgType"] == "LifeReduced")
+                                {
+                                    // Find the match and report that the ws said something about a reduced life.
+                                    idToPlayerDictionary[wsToIdDictionary[ws]].currentMatch.LifeReduced(ws);
+                                }
+                                else
+                                {
+                                    // Find related match, relay message.
+                                    idToPlayerDictionary[wsToIdDictionary[ws]].currentMatch.SendToOpponent(ws, msg);
+                                }
+                            }
                         }                        
                     }
                 }

@@ -10,9 +10,14 @@ namespace SwinecideServer
 {
     public class Match
     {
+        // match length in milliseconds.
+        private static int MatchLength = 600000;
+        private enum msgTypes { LogInRequest, LogIn, EndGame, NewBuilding, NewCreature, CreatureDied, LifeReduced };
         public SwinecideServer server;
         public Player defender;
         public Player attacker;
+        private int attackerLifeRequest;
+        private int defenderLifeRequest;
 
         public Match(Player attacker, Player defender, SwinecideServer server)
         {
@@ -22,15 +27,63 @@ namespace SwinecideServer
             this.attacker = attacker;
             this.defender = defender;
             this.server = server;
+            this.attackerLifeRequest = 0;
+            this.defenderLifeRequest = 0;
             /*
              * { "msgType":"LogInRequest", "role":"defender" }
              */
+            string tempString = "role,attacker";
+            this.SendMessage(attacker.ws, GenerateMessage(msgTypes.LogIn, tempString));
+            tempString = "role,defender";
+            this.SendMessage(defender.ws, GenerateMessage(msgTypes.LogIn, tempString));
+
+            var task = Task.Run(() => ScheduleMatchEnd());
+        }
+
+        public async void ScheduleMatchEnd()
+        {
+            await Task.Delay(Match.MatchLength);
+            if (Math.Min(this.attackerLifeRequest, this.defenderLifeRequest) < 0)
+            {
+                this.SendMessage(null, this.GenerateMessage(msgTypes.EndGame, "winner,defender"));
+            }
+        }
+
+        public void LifeReduced(WebSocket ws)
+        {
+            if (ws == this.attacker.getSocket())
+            {
+                this.attackerLifeRequest++;
+            }
+            else
+            {
+                this.defenderLifeRequest++;
+            }
+
+            if (Math.Min(this.attackerLifeRequest, this.defenderLifeRequest) >= 3)
+            {
+                this.SendMessage(null, this.GenerateMessage(msgTypes.EndGame, "winner,attacker"));
+            }
+        }
+
+        private String GenerateMessage(msgTypes msgType, string keyValuePairs) {
             Dictionary<String, String> tempDict = new Dictionary<string, string>();
-            tempDict.Add("msgType", "LogIn");
-            tempDict.Add("role", "attacker");
-            attacker.ws.WriteString(JsonConvert.SerializeObject(tempDict, Formatting.Indented));
-            tempDict["role"] = "defender";
-            defender.ws.WriteString(JsonConvert.SerializeObject(tempDict, Formatting.Indented));
+            tempDict.Add("msgType", msgType.ToString());
+
+            foreach (string pair in keyValuePairs.Split(' '))
+            {
+                if (pair.Split(',').Length == 2)
+                {
+                    tempDict.Add(pair.Split(',')[0], pair.Split(',')[1]);
+                }
+                else
+                {
+                    throw new Exception("Generate Message: Bad KVP formatting.");
+                }
+                
+            }
+
+            return JsonConvert.SerializeObject(tempDict, Formatting.Indented);
         }
 
         public void Dispose()
@@ -43,30 +96,48 @@ namespace SwinecideServer
             this.defender = null;
         }
 
-        private void defender_said(string msg)
+        private void WriteToAttacker(string msg)
         {
             attacker.ws.WriteString(msg);
         }
 
-        private void attacker_said(string msg)
+        private void WriteToDefender(string msg)
         {
             defender.ws.WriteString(msg);
         }
 
-        public void send_message(WebSocket ws, string msg) 
+        public void SendMessage(WebSocket wsTarget, string msg) 
         {
-            if (ws == defender.ws)
+            if (wsTarget == attacker.ws)
             {
-                defender_said(msg);
+                WriteToAttacker(msg);
             }
-            else if (ws == attacker.ws)
+            else if (wsTarget == defender.ws)
             {
-                attacker_said(msg);
+                WriteToDefender(msg);
+            }
+            // Send to both?
+            else if (wsTarget == null)
+            {
+                WriteToAttacker(msg);
+                WriteToDefender(msg);
             }
             else {
-                throw new Exception("Somehow ws in match was neither attacker nor defender.");
+                throw new Exception("SendMessage: Somehow ws in match was neither attacker nor defender.");
             }
             
+        }
+
+        public void SendToOpponent(WebSocket wsFrom, string msg)
+        {
+            if (wsFrom == defender.ws)
+            {
+                WriteToAttacker(msg);
+            }
+            else if (wsFrom == attacker.ws)
+            {
+                WriteToAttacker(msg);
+            }
         }
 
         public void ws_disconnected(WebSocket ws)
@@ -75,12 +146,12 @@ namespace SwinecideServer
             if (ws.RemoteEndpoint.Equals(defender.ws.RemoteEndpoint))
             {
                 Console.WriteLine("Defender disconnected - attacker wins!");
-                attacker.ws.WriteString("Defender disconnected - attacker wins!");
+                this.SendMessage(attacker.ws, this.GenerateMessage(msgTypes.EndGame, "winner,attacker"));
             }
             else
             {
                 Console.WriteLine("Attacker disconnected - defender wins!");
-                defender.ws.WriteString("Attacker disconnected - defender wins!");
+                this.SendMessage(defender.ws, this.GenerateMessage(msgTypes.EndGame, "winner,defender"));
             }
             server.ReportMatchDone(this);
 
