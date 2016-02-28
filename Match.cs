@@ -12,12 +12,15 @@ namespace SwinecideServer
     {
         // match length in milliseconds.
         private static int MatchLength = 600000;
-        private enum msgTypes { LogInRequest, LogIn, EndGame, NewBuilding, NewCreature, CreatureDied, LifeReduced };
+        private static int AttackerDelay = 5000;
+        private static int DefenderDelay = 10000;
+        private enum msgTypes { LogInRequest, LogIn, EndGame, EntityRequest, NewEntity, CreatureDied, LifeReduced };
         public SwinecideServer server;
         public Player defender;
         public Player attacker;
         private int attackerLifeRequest;
         private int defenderLifeRequest;
+        private int entityCounter;
 
         public Match(Player attacker, Player defender, SwinecideServer server)
         {
@@ -29,6 +32,7 @@ namespace SwinecideServer
             this.server = server;
             this.attackerLifeRequest = 0;
             this.defenderLifeRequest = 0;
+            this.entityCounter = 1;
             /*
              * { "msgType":"LogInRequest", "role":"defender" }
              */
@@ -49,6 +53,25 @@ namespace SwinecideServer
             }
         }
 
+        public async void EntityRequested(WebSocket ws, long EntityType, long x, long y, long parentId)
+        {
+            this.entityCounter++;
+            String kVP = "";
+            kVP = "type," + EntityType + " entityID," + this.entityCounter + " location,x," + x + " location,y," + y + " parent_id," + parentId;
+            int delay = 0;
+            if (ws == this.attacker.getSocket())
+            {
+                delay = Match.AttackerDelay;
+            }
+            else
+            {
+                delay = Match.DefenderDelay;
+            }
+
+            await Task.Delay(delay);
+            this.SendMessage(null, this.GenerateMessage(msgTypes.NewEntity, kVP));
+        }
+
         public void LifeReduced(WebSocket ws)
         {
             if (ws == this.attacker.getSocket())
@@ -67,7 +90,7 @@ namespace SwinecideServer
         }
 
         private String GenerateMessage(msgTypes msgType, string keyValuePairs) {
-            Dictionary<String, String> tempDict = new Dictionary<string, string>();
+            Dictionary<String, dynamic> tempDict = new Dictionary<string, dynamic>();
             tempDict.Add("msgType", msgType.ToString());
 
             foreach (string pair in keyValuePairs.Split(' '))
@@ -75,6 +98,18 @@ namespace SwinecideServer
                 if (pair.Split(',').Length == 2)
                 {
                     tempDict.Add(pair.Split(',')[0], pair.Split(',')[1]);
+                }
+                else if (pair.Split(',').Length == 3)
+                {
+                    Dictionary<String, dynamic> internalDict = null;
+                    if (tempDict.Keys.Contains(pair.Split(',')[0]))
+                    {
+                        internalDict = tempDict[pair.Split(',')[0]];
+                    }
+                    else {
+                        internalDict = new Dictionary<string,dynamic>();
+                    }
+                    internalDict.Add(pair.Split(',')[1], pair.Split(',')[2]);
                 }
                 else
                 {
@@ -136,7 +171,7 @@ namespace SwinecideServer
             }
             else if (wsFrom == attacker.ws)
             {
-                WriteToAttacker(msg);
+                WriteToDefender(msg);
             }
         }
 

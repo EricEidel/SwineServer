@@ -148,7 +148,6 @@ namespace SwinecideServer
                                 ws.WriteString("Please wait for a match to start.");
                             }
                         }
-                        // Websocket is sending messages before getting put into a match, it's already queued.
                         else
                         {
                             // The websocket is already in a match
@@ -163,6 +162,15 @@ namespace SwinecideServer
                                 {
                                     // Find the match and report that the ws said something about a reduced life.
                                     idToPlayerDictionary[wsToIdDictionary[ws]].currentMatch.LifeReduced(ws);
+                                }
+                                else if (msgDict["msgType"] == "RequestEntity") {
+                                    // Find related match, relay message.
+                                    idToPlayerDictionary[wsToIdDictionary[ws]].currentMatch.SendToOpponent(ws, msg);
+                                    long type = msgDict["type"];
+                                    long x = msgDict["location"]["x"];
+                                    long y = msgDict["location"]["y"];
+                                    long parentId = msgDict["parent_id"];
+                                    idToPlayerDictionary[wsToIdDictionary[ws]].currentMatch.EntityRequested(ws, type, x, y, parentId);
                                 }
                                 else
                                 {
