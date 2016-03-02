@@ -166,10 +166,10 @@ namespace SwinecideServer
                                 else if (msgDict["msgType"] == "RequestEntity") {
                                     // Find related match, relay message.
                                     idToPlayerDictionary[wsToIdDictionary[ws]].currentMatch.SendToOpponent(ws, msg);
-                                    long type = msgDict["type"];
-                                    long x = msgDict["location"]["x"];
-                                    long y = msgDict["location"]["y"];
-                                    long parentId = msgDict["parent_id"];
+                                    int type = (int) msgDict["type"];
+                                    int x = (int) msgDict["location"]["x"];
+                                    int y = (int) msgDict["location"]["y"];
+                                    int parentId = (int) msgDict["parent_id"];
                                     idToPlayerDictionary[wsToIdDictionary[ws]].currentMatch.EntityRequested(ws, type, x, y, parentId);
                                 }
                                 else

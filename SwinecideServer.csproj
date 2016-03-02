@@ -68,6 +68,9 @@
       <DependentUpon>Form1.cs</DependentUpon>
     </Compile>
     <Compile Include="Match.cs" />
+    <Compile Include="MsgObjects\NewEntity.cs" />
+    <Compile Include="MsgObjects\EndGame.cs" />
+    <Compile Include="MsgObjects\LogIn.cs" />
     <Compile Include="Player.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

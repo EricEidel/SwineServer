@@ -36,10 +36,10 @@ namespace SwinecideServer
             /*
              * { "msgType":"LogInRequest", "role":"defender" }
              */
-            string tempString = "role,attacker";
-            this.SendMessage(attacker.ws, GenerateMessage(msgTypes.LogIn, tempString));
-            tempString = "role,defender";
-            this.SendMessage(defender.ws, GenerateMessage(msgTypes.LogIn, tempString));
+            MsgObjects.LogIn temp = new MsgObjects.LogIn("attacker");
+            this.SendMessage(attacker.ws, temp.ToJSON());
+            temp = new MsgObjects.LogIn("defender");
+            this.SendMessage(defender.ws, temp.ToJSON());
 
             var task = Task.Run(() => ScheduleMatchEnd());
         }
@@ -49,11 +49,12 @@ namespace SwinecideServer
             await Task.Delay(Match.MatchLength);
             if (Math.Min(this.attackerLifeRequest, this.defenderLifeRequest) < 0)
             {
-                this.SendMessage(null, this.GenerateMessage(msgTypes.EndGame, "winner,defender"));
+                MsgObjects.EndGame temp = new MsgObjects.EndGame("defender");
+                this.SendMessage(null, temp.ToJSON());
             }
         }
 
-        public async void EntityRequested(WebSocket ws, long EntityType, long x, long y, long parentId)
+        public async void EntityRequested(WebSocket ws, int EntityType, int x, int y, int parentId)
         {
             this.entityCounter++;
             String kVP = "";
@@ -69,7 +70,8 @@ namespace SwinecideServer
             }
 
             await Task.Delay(delay);
-            this.SendMessage(null, this.GenerateMessage(msgTypes.NewEntity, kVP));
+            MsgObjects.NewEntity temp = new MsgObjects.NewEntity(EntityType, this.entityCounter, x, y, parentId);
+            this.SendMessage(null, temp.ToJSON());
         }
 
         public void LifeReduced(WebSocket ws)
@@ -85,40 +87,9 @@ namespace SwinecideServer
 
             if (Math.Min(this.attackerLifeRequest, this.defenderLifeRequest) >= 3)
             {
-                this.SendMessage(null, this.GenerateMessage(msgTypes.EndGame, "winner,attacker"));
+                MsgObjects.EndGame temp = new MsgObjects.EndGame("attacker");
+                this.SendMessage(null, temp.ToJSON());
             }
-        }
-
-        private String GenerateMessage(msgTypes msgType, string keyValuePairs) {
-            Dictionary<String, dynamic> tempDict = new Dictionary<string, dynamic>();
-            tempDict.Add("msgType", msgType.ToString());
-
-            foreach (string pair in keyValuePairs.Split(' '))
-            {
-                if (pair.Split(',').Length == 2)
-                {
-                    tempDict.Add(pair.Split(',')[0], pair.Split(',')[1]);
-                }
-                else if (pair.Split(',').Length == 3)
-                {
-                    Dictionary<String, dynamic> internalDict = null;
-                    if (tempDict.Keys.Contains(pair.Split(',')[0]))
-                    {
-                        internalDict = tempDict[pair.Split(',')[0]];
-                    }
-                    else {
-                        internalDict = new Dictionary<string,dynamic>();
-                    }
-                    internalDict.Add(pair.Split(',')[1], pair.Split(',')[2]);
-                }
-                else
-                {
-                    throw new Exception("Generate Message: Bad KVP formatting.");
-                }
-                
-            }
-
-            return JsonConvert.SerializeObject(tempDict, Formatting.Indented);
         }
 
         public void Dispose()
@@ -180,13 +151,15 @@ namespace SwinecideServer
             Dictionary<String, String> tempDict = new Dictionary<string, string>();
             if (ws.RemoteEndpoint.Equals(defender.ws.RemoteEndpoint))
             {
+                MsgObjects.LogIn temp = new MsgObjects.LogIn("attacker");
                 Console.WriteLine("Defender disconnected - attacker wins!");
-                this.SendMessage(attacker.ws, this.GenerateMessage(msgTypes.EndGame, "winner,attacker"));
+                this.SendMessage(attacker.ws, temp.ToJSON());
             }
             else
             {
+                MsgObjects.LogIn temp = new MsgObjects.LogIn("defender");
                 Console.WriteLine("Attacker disconnected - defender wins!");
-                this.SendMessage(defender.ws, this.GenerateMessage(msgTypes.EndGame, "winner,defender"));
+                this.SendMessage(defender.ws, temp.ToJSON());
             }
             server.ReportMatchDone(this);
 
