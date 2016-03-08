@@ -22,6 +22,7 @@ namespace SwinecideServer
         private int attackerLifeRequest;
         private int defenderLifeRequest;
         private int entityCounter;
+        private string messagelog;
 
         public Match(Player attacker, Player defender, SwinecideServer server)
         {
@@ -34,6 +35,7 @@ namespace SwinecideServer
             this.attackerLifeRequest = 0;
             this.defenderLifeRequest = 0;
             this.entityCounter = 1;
+            this.messagelog = "";
             /*
              * { "msgType":"LogInRequest", "role":"defender" }
              */
@@ -58,8 +60,6 @@ namespace SwinecideServer
         public async void EntityRequested(WebSocket ws, int EntityType, int x, int y, int parentId)
         {
             this.entityCounter++;
-            String kVP = "";
-            kVP = "type," + EntityType + " entityID," + this.entityCounter + " location,x," + x + " location,y," + y + " parent_id," + parentId;
             int delay = 0;
             if (ws == this.attacker.getSocket())
             {
@@ -78,12 +78,7 @@ namespace SwinecideServer
         public void AcceptMessage(WebSocket ws, Dictionary<string, dynamic> msgDict)
         {
             string msg = JsonConvert.SerializeObject(msgDict, Formatting.None);
-            // TODO: Log msg.
-            string path = @"C:\jsonlog.txt";
-
-            TextWriter tw = new StreamWriter(path, true);
-            tw.WriteLine(msg);
-            tw.Close();
+            this.messagelog += msg + "\n";
 
             // Check if message is for server.
             if (msgDict["msgType"] == "CreatureDied")
@@ -138,6 +133,15 @@ namespace SwinecideServer
             this.defender.currentMatch = null;
             this.attacker = null;
             this.defender = null;
+
+            string path = @"C:\jsonlog.txt";
+            TextWriter tw = new StreamWriter(path, true);
+            foreach (string msg in messagelog.Split('\n'))
+            {
+                tw.WriteLine(msg);
+            }
+            tw.WriteLine();
+            tw.Close();
         }
 
         private void WriteToAttacker(string msg)
