@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -72,6 +73,43 @@ namespace SwinecideServer
             await Task.Delay(delay);
             MsgObjects.NewEntity temp = new MsgObjects.NewEntity(EntityType, this.entityCounter, x, y, parentId);
             this.SendMessage(null, temp.ToJSON());
+        }
+
+        public void AcceptMessage(WebSocket ws, Dictionary<string, dynamic> msgDict)
+        {
+            string msg = JsonConvert.SerializeObject(msgDict, Formatting.None);
+            // TODO: Log msg.
+            string path = @"C:\jsonlog.txt";
+
+            TextWriter tw = new StreamWriter(path, true);
+            tw.WriteLine(msg);
+            tw.Close();
+
+            // Check if message is for server.
+            if (msgDict["msgType"] == "CreatureDied")
+            {
+                // Not doing anything with this yet.
+            }
+            else if (msgDict["msgType"] == "LifeReduced")
+            {
+                // Find the match and report that the ws said something about a reduced life.
+                this.LifeReduced(ws);
+            }
+            else if (msgDict["msgType"] == "RequestEntity")
+            {
+                // Find related match, relay message.
+                this.SendToOpponent(ws, msg);
+                int type = (int)msgDict["type"];
+                int x = (int)msgDict["location"]["x"];
+                int y = (int)msgDict["location"]["y"];
+                int parentId = (int)msgDict["parent_id"];
+                this.EntityRequested(ws, type, x, y, parentId);
+            }
+            else
+            {
+                // Find related match, relay message.
+                this.SendToOpponent(ws, msg);
+            }
         }
 
         public void LifeReduced(WebSocket ws)
