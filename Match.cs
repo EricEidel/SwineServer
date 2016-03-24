@@ -146,21 +146,27 @@ namespace SwinecideServer
 
         private void WriteToAttacker(string msg)
         {
-            attacker.ws.WriteString(msg);
+            if (attacker.ws.IsConnected)
+            {
+                attacker.ws.WriteString(msg);
+            }
         }
 
         private void WriteToDefender(string msg)
         {
-            defender.ws.WriteString(msg);
+            if (defender.ws.IsConnected)
+            {
+                defender.ws.WriteString(msg);
+            }
         }
 
         public void SendMessage(WebSocket wsTarget, string msg) 
         {
-            if (wsTarget == attacker.ws)
+            if (attacker.ws != null && wsTarget == attacker.ws)
             {
                 WriteToAttacker(msg);
             }
-            else if (wsTarget == defender.ws)
+            else if (defender.ws != null && wsTarget == defender.ws)
             {
                 WriteToDefender(msg);
             }
@@ -178,11 +184,11 @@ namespace SwinecideServer
 
         public void SendToOpponent(WebSocket wsFrom, string msg)
         {
-            if (wsFrom == defender.ws)
+            if (wsFrom == defender.ws && attacker.ws != null)
             {
                 WriteToAttacker(msg);
             }
-            else if (wsFrom == attacker.ws)
+            else if (wsFrom == attacker.ws & defender.ws != null)
             {
                 WriteToDefender(msg);
             }

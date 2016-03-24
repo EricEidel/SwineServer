@@ -109,7 +109,7 @@ namespace SwinecideServer
                             {
                                 idToPlayerDictionary[wsToIdDictionary[ws]].currentMatch.AcceptMessage(ws, msgDict);
                             }
-                        }                        
+                        }
                     }
                 }
             }
@@ -119,8 +119,35 @@ namespace SwinecideServer
                 try { ws.Close(); }
                 catch { }
             }
+            // Theoretically, this happens when the ws disconnected, right?
             finally
             {
+                if (wsToIdDictionary.ContainsKey(ws))
+                {
+                    if (attackerQueue.Contains(wsToIdDictionary[ws]))
+                    {
+                        string tempId = wsToIdDictionary[ws];
+                        // loop ends when we find the id matching the ws we want to remove.
+                        while (tempId != attackerQueue.Peek())
+                        {
+                            attackerQueue.Enqueue(attackerQueue.Dequeue());
+                        }
+                        attackerQueue.Dequeue();
+                    }
+                }
+                if (wsToIdDictionary.ContainsKey(ws))
+                {
+                    if (defenderQueue.Contains(wsToIdDictionary[ws]))
+                    {
+                        string tempId = wsToIdDictionary[ws];
+                        // loop ends when we find the id matching the ws we want to remove.
+                        while (tempId != defenderQueue.Peek())
+                        {
+                            defenderQueue.Enqueue(attackerQueue.Dequeue());
+                        }
+                        defenderQueue.Dequeue();
+                    }
+                }
                 if (wsToIdDictionary.ContainsKey(ws))
                 {
                     if (idToPlayerDictionary.ContainsKey(wsToIdDictionary[ws]))
